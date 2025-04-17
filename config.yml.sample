@@ -1,0 +1,27 @@
+brokers:
+  - type: schwab
+    id: schwab1
+    enabled: true
+    use_mock: false
+    credentials:
+      client_id: ""
+      client_secret: ""
+      refresh_token: ""  # Manually obtained refresh token
+      redirect_uri: "https://developer.schwab.com/oauth2-redirect.html"  # Your OAuth redirect URI
+  
+  - type: merrill
+    id: merrill1
+    enabled: false
+    use_mock: false
+    credentials:
+      client_id: "your_client_id_3"
+      client_secret: "your_client_secret_3"
+      refresh_token: "your_refresh_token_3"
+      redirect_uri: "https://your-redirect-uri.com/callback"
+
+redis:
+  url: "redis://localhost:6379/0"
+
+app:
+  port: 5001
+  debug: false 

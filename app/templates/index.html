@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Portfolio Aggregator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        @media (min-width: 1080px) {
+            .container {
+                max-width: 1000px;
+                margin: 0 auto;
+            }
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            .table-container {
+                max-height: 600px;
+                overflow-y: auto;
+            }
+            .positions-table {
+                font-size: 0.875rem;
+            }
+            .positions-table th, .positions-table td {
+                padding: 0.5rem;
+            }
+            .company-name {
+                max-width: 150px;
+                white-space: normal;
+                word-wrap: break-word;
+            }
+            .symbol-cell {
+                display: flex;
+                flex-direction: column;
+            }
+            .symbol {
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+            .sector {
+                font-size: 0.75rem;
+                color: #6B7280;
+                display: none;
+            }
+            .sector.show {
+                display: block;
+            }
+            .toggle-btn {
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 0;
+                color: #6B7280;
+                font-size: 0.75rem;
+            }
+            .toggle-btn:hover {
+                color: #4B5563;
+            }
+            .account-details {
+                background-color: #F9FAFB;
+                border-left: 4px solid #E5E7EB;
+                display: none;
+            }
+            .account-details.show {
+                display: table-row;
+            }
+            .account-header {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                padding: 0.5rem 0;
+                border-bottom: 1px solid #E5E7EB;
+                background-color: #F3F4F6;
+            }
+            .account-id {
+                font-weight: 600;
+                min-width: 100px;
+            }
+            .account-summary {
+                display: flex;
+                gap: 1rem;
+                color: #6B7280;
+            }
+            .lot-line {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                padding: 0.25rem 0;
+                border-bottom: 1px solid #E5E7EB;
+                margin-left: 1rem;
+            }
+            .lot-line:last-child {
+                border-bottom: none;
+            }
+            .lot-info {
+                display: flex;
+                gap: 1rem;
+                color: #6B7280;
+            }
+            .lot-date {
+                min-width: 100px;
+            }
+            .lot-shares {
+                min-width: 80px;
+            }
+            .lot-cost {
+                min-width: 100px;
+            }
+            .lot-value {
+                min-width: 100px;
+            }
+            .lot-pl {
+                min-width: 120px;
+            }
+            .lot-header {
+                font-weight: 600;
+                color: #4B5563;
+                margin-left: 1rem;
+                padding: 0.25rem 0;
+                border-bottom: 1px solid #E5E7EB;
+            }
+        }
+        .sort-indicator {
+            margin-left: 5px;
+            font-weight: bold;
+        }
+        
+        th {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        th:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold mb-6 text-center">Stock Portfolio Aggregator</h1>
+        
+        <!-- Summary Cards -->
+        <div class="summary-grid grid mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <h2 class="text-lg font-semibold mb-1">Total Market Value</h2>
+                <p class="text-2xl font-bold">${{ "%.2f"|format(total_market_value) }}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <h2 class="text-lg font-semibold mb-1">Total Unrealized P/L</h2>
+                <p class="text-2xl font-bold {{ 'text-green-600' if total_unrealized_pl >= 0 else 'text-red-600' }}">
+                    ${{ "%.2f"|format(total_unrealized_pl) }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Positions Tables -->
+        <div class="space-y-6">
+            <!-- Equity Positions -->
+            {% if positions.equity %}
+            <div class="bg-white rounded-lg shadow">
+                <h2 class="text-xl font-semibold p-4 border-b sticky top-0 bg-white">Equity Positions</h2>
+                <div class="table-container">
+                    <table id="equityPositionsTable" class="min-w-full divide-y divide-gray-200 positions-table">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Symbol</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Name</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Qty</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Avg Cost</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Price</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Value</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for position in positions.equity %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="symbol-cell">
+                                    <div class="symbol">
+                                        {{ position.symbol }}
+                                        <button class="toggle-btn" onclick="toggleDetails(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <span class="sector">{{ position.sector }}</span>
+                                </td>
+                                <td class="company-name">{{ position.name }}</td>
+                                <td class="whitespace-nowrap">{{ "%.2f"|format(position.total_quantity) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.average_cost_basis) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.current_price) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.total_market_value) }}</td>
+                                <td class="whitespace-nowrap {{ 'text-green-600' if position.total_unrealized_pl >= 0 else 'text-red-600' }}">
+                                    ${{ "%.2f"|format(position.total_unrealized_pl) }} ({{ "%.2f"|format(position.unrealized_pl_percent) }}%)
+                                </td>
+                            </tr>
+                            {% if position.accounts %}
+                            <tr class="account-details details-row">
+                                <td colspan="7" class="px-4 py-2">
+                                    <div class="text-sm">
+                                        {% for account in position.accounts %}
+                                        <div class="account-header">
+                                            <span class="account-id">{{ account.account_id }}</span>
+                                            <div class="account-summary">
+                                                <span>{{ "%.2f"|format(account.quantity) }} shares</span>
+                                                <span>Avg Price: ${{ "%.2f"|format(account.average_price) }}</span>
+                                                <span class="{{ 'text-green-600' if account.unrealized_pl >= 0 else 'text-red-600' }}">
+                                                    Total P/L: ${{ "%.2f"|format(account.unrealized_pl) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t bg-gray-50">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Market Value:</span>
+                        <span>${{ "%.2f"|format(totals.equity.market_value) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Unrealized P/L:</span>
+                        <span class="{{ 'text-green-600' if totals.equity.unrealized_pl >= 0 else 'text-red-600' }}">
+                            ${{ "%.2f"|format(totals.equity.unrealized_pl) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Fixed Income Positions -->
+            {% if positions.fixed_income %}
+            <div class="bg-white rounded-lg shadow">
+                <h2 class="text-xl font-semibold p-4 border-b sticky top-0 bg-white">Fixed Income Positions</h2>
+                <div class="table-container">
+                    <table id="fixedIncomePositionsTable" class="min-w-full divide-y divide-gray-200 positions-table">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Symbol</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Name</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Qty</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Avg Cost</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Price</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Value</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for position in positions.fixed_income %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="symbol-cell">
+                                    <div class="symbol">
+                                        {{ position.symbol }}
+                                        <button class="toggle-btn" onclick="toggleDetails(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="company-name">{{ position.name }}</td>
+                                <td class="whitespace-nowrap">{{ "%.2f"|format(position.total_quantity) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.average_cost_basis) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.current_price) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.total_market_value) }}</td>
+                                <td class="whitespace-nowrap {{ 'text-green-600' if position.total_unrealized_pl >= 0 else 'text-red-600' }}">
+                                    ${{ "%.2f"|format(position.total_unrealized_pl) }} ({{ "%.2f"|format(position.unrealized_pl_percent) }}%)
+                                </td>
+                            </tr>
+                            {% if position.accounts %}
+                            <tr class="account-details details-row">
+                                <td colspan="7" class="px-4 py-2">
+                                    <div class="text-sm">
+                                        {% for account in position.accounts %}
+                                        <div class="account-header">
+                                            <span class="account-id">{{ account.account_id }}</span>
+                                            <div class="account-summary">
+                                                <span>{{ "%.2f"|format(account.quantity) }} shares</span>
+                                                <span>Avg Price: ${{ "%.2f"|format(account.average_price) }}</span>
+                                                <span class="{{ 'text-green-600' if account.unrealized_pl >= 0 else 'text-red-600' }}">
+                                                    Total P/L: ${{ "%.2f"|format(account.unrealized_pl) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t bg-gray-50">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Market Value:</span>
+                        <span>${{ "%.2f"|format(totals.fixed_income.market_value) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Unrealized P/L:</span>
+                        <span class="{{ 'text-green-600' if totals.fixed_income.unrealized_pl >= 0 else 'text-red-600' }}">
+                            ${{ "%.2f"|format(totals.fixed_income.unrealized_pl) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Options Positions -->
+            {% if positions.option %}
+            <div class="bg-white rounded-lg shadow">
+                <h2 class="text-xl font-semibold p-4 border-b sticky top-0 bg-white">Options Positions</h2>
+                <div class="table-container">
+                    <table id="optionsPositionsTable" class="min-w-full divide-y divide-gray-200 positions-table">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Symbol</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Name</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Qty</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Avg Cost</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Price</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Value</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for position in positions.option %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="symbol-cell">
+                                    <div class="symbol">
+                                        {{ position.symbol }}
+                                        <button class="toggle-btn" onclick="toggleDetails(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="company-name">{{ position.name }}</td>
+                                <td class="whitespace-nowrap">{{ "%.2f"|format(position.total_quantity) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.average_cost_basis) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.current_price) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.total_market_value) }}</td>
+                                <td class="whitespace-nowrap {{ 'text-green-600' if position.total_unrealized_pl >= 0 else 'text-red-600' }}">
+                                    ${{ "%.2f"|format(position.total_unrealized_pl) }} ({{ "%.2f"|format(position.unrealized_pl_percent) }}%)
+                                </td>
+                            </tr>
+                            {% if position.accounts %}
+                            <tr class="account-details details-row">
+                                <td colspan="7" class="px-4 py-2">
+                                    <div class="text-sm">
+                                        {% for account in position.accounts %}
+                                        <div class="account-header">
+                                            <span class="account-id">{{ account.account_id }}</span>
+                                            <div class="account-summary">
+                                                <span>{{ "%.2f"|format(account.quantity) }} shares</span>
+                                                <span>Avg Price: ${{ "%.2f"|format(account.average_price) }}</span>
+                                                <span class="{{ 'text-green-600' if account.unrealized_pl >= 0 else 'text-red-600' }}">
+                                                    Total P/L: ${{ "%.2f"|format(account.unrealized_pl) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t bg-gray-50">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Market Value:</span>
+                        <span>${{ "%.2f"|format(totals.option.market_value) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Unrealized P/L:</span>
+                        <span class="{{ 'text-green-600' if totals.option.unrealized_pl >= 0 else 'text-red-600' }}">
+                            ${{ "%.2f"|format(totals.option.unrealized_pl) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Collective Investment Positions -->
+            {% if positions.collective_investment %}
+            <div class="bg-white rounded-lg shadow">
+                <h2 class="text-xl font-semibold p-4 border-b sticky top-0 bg-white">Collective Investment Positions</h2>
+                <div class="table-container">
+                    <table id="collectivePositionsTable" class="min-w-full divide-y divide-gray-200 positions-table">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Symbol</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Name</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Qty</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Avg Cost</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Price</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Value</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for position in positions.collective_investment %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="symbol-cell">
+                                    <div class="symbol">
+                                        {{ position.symbol }}
+                                        <button class="toggle-btn" onclick="toggleDetails(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="company-name">{{ position.name }}</td>
+                                <td class="whitespace-nowrap">{{ "%.2f"|format(position.total_quantity) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.average_cost_basis) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.current_price) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.total_market_value) }}</td>
+                                <td class="whitespace-nowrap {{ 'text-green-600' if position.total_unrealized_pl >= 0 else 'text-red-600' }}">
+                                    ${{ "%.2f"|format(position.total_unrealized_pl) }} ({{ "%.2f"|format(position.unrealized_pl_percent) }}%)
+                                </td>
+                            </tr>
+                            {% if position.accounts %}
+                            <tr class="account-details details-row">
+                                <td colspan="7" class="px-4 py-2">
+                                    <div class="text-sm">
+                                        {% for account in position.accounts %}
+                                        <div class="account-header">
+                                            <span class="account-id">{{ account.account_id }}</span>
+                                            <div class="account-summary">
+                                                <span>{{ "%.2f"|format(account.quantity) }} shares</span>
+                                                <span>Avg Price: ${{ "%.2f"|format(account.average_price) }}</span>
+                                                <span class="{{ 'text-green-600' if account.unrealized_pl >= 0 else 'text-red-600' }}">
+                                                    Total P/L: ${{ "%.2f"|format(account.unrealized_pl) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t bg-gray-50">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Market Value:</span>
+                        <span>${{ "%.2f"|format(totals.collective_investment.market_value) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Unrealized P/L:</span>
+                        <span class="{{ 'text-green-600' if totals.collective_investment.unrealized_pl >= 0 else 'text-red-600' }}">
+                            ${{ "%.2f"|format(totals.collective_investment.unrealized_pl) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Other Positions -->
+            {% if positions.other %}
+            <div class="bg-white rounded-lg shadow">
+                <h2 class="text-xl font-semibold p-4 border-b sticky top-0 bg-white">Other Positions</h2>
+                <div class="table-container">
+                    <table id="otherPositionsTable" class="min-w-full divide-y divide-gray-200 positions-table">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Symbol</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Name</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Qty</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Avg Cost</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Price</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Value</th>
+                                <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for position in positions.other %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="symbol-cell">
+                                    <div class="symbol">
+                                        {{ position.symbol }}
+                                        <button class="toggle-btn" onclick="toggleDetails(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="company-name">{{ position.name }}</td>
+                                <td class="whitespace-nowrap">{{ "%.2f"|format(position.total_quantity) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.average_cost_basis) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.current_price) }}</td>
+                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.total_market_value) }}</td>
+                                <td class="whitespace-nowrap {{ 'text-green-600' if position.total_unrealized_pl >= 0 else 'text-red-600' }}">
+                                    ${{ "%.2f"|format(position.total_unrealized_pl) }} ({{ "%.2f"|format(position.unrealized_pl_percent) }}%)
+                                </td>
+                            </tr>
+                            {% if position.accounts %}
+                            <tr class="account-details details-row">
+                                <td colspan="7" class="px-4 py-2">
+                                    <div class="text-sm">
+                                        {% for account in position.accounts %}
+                                        <div class="account-header">
+                                            <span class="account-id">{{ account.account_id }}</span>
+                                            <div class="account-summary">
+                                                <span>{{ "%.2f"|format(account.quantity) }} shares</span>
+                                                <span>Avg Price: ${{ "%.2f"|format(account.average_price) }}</span>
+                                                <span class="{{ 'text-green-600' if account.unrealized_pl >= 0 else 'text-red-600' }}">
+                                                    Total P/L: ${{ "%.2f"|format(account.unrealized_pl) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t bg-gray-50">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Market Value:</span>
+                        <span>${{ "%.2f"|format(totals.other.market_value) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Total Unrealized P/L:</span>
+                        <span class="{{ 'text-green-600' if totals.other.unrealized_pl >= 0 else 'text-red-600' }}">
+                            ${{ "%.2f"|format(totals.other.unrealized_pl) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Accounts Table -->
+        <div class="bg-white rounded-lg shadow mt-6">
+            <h2 class="text-xl font-semibold p-4 border-b sticky top-0 bg-white">Accounts</h2>
+            <div class="table-container">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Name</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Number</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for account in accounts %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2 whitespace-nowrap">{{ account.account_name }}</td>
+                            <td class="px-4 py-2 whitespace-nowrap">{{ account.account_number }}</td>
+                            <td class="px-4 py-2 whitespace-nowrap">{{ account.account_type }}</td>
+                            <td class="px-4 py-2 whitespace-nowrap">${{ "%.2f"|format(account.balance) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mt-4 text-sm text-gray-500 text-center">
+            Last updated: {{ last_updated }}
+        </div>
+    </div>
+
+    <script>
+        function toggleDetails(button) {
+            const row = button.closest('tr');
+            const detailsRow = row.nextElementSibling;
+            const arrow = button.querySelector('.arrow');
+            
+            if (detailsRow && detailsRow.classList.contains('details-row')) {
+                const isHidden = detailsRow.style.display === 'none';
+                detailsRow.style.display = isHidden ? 'table-row' : 'none';
+                arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+        }
+
+        function sortTable(tableId, columnIndex) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr:not(.details-row)'));
+            const header = table.querySelectorAll('th')[columnIndex];
+            const isAsc = header.getAttribute('data-sort') === 'asc';
+            
+            // Reset all sort indicators
+            table.querySelectorAll('th').forEach(th => {
+                th.removeAttribute('data-sort');
+                const existingIndicator = th.querySelector('.sort-indicator');
+                if (existingIndicator) {
+                    existingIndicator.remove();
+                }
+            });
+            
+            // Add sort indicator
+            const indicator = document.createElement('span');
+            indicator.className = 'sort-indicator';
+            indicator.textContent = isAsc ? ' ↓' : ' ↑';
+            header.appendChild(indicator);
+            header.setAttribute('data-sort', isAsc ? 'desc' : 'asc');
+            
+            // Sort rows
+            rows.sort((a, b) => {
+                const aValue = a.cells[columnIndex].textContent.trim();
+                const bValue = b.cells[columnIndex].textContent.trim();
+                
+                // Handle numeric values (Qty, Avg Cost, Price, Value, P/L)
+                if (columnIndex === 2 || columnIndex === 3 || columnIndex === 4 || columnIndex === 5 || columnIndex === 6) {
+                    const aNum = parseFloat(aValue.replace(/[^0-9.-]+/g, ''));
+                    const bNum = parseFloat(bValue.replace(/[^0-9.-]+/g, ''));
+                    return isAsc ? aNum - bNum : bNum - aNum;
+                }
+                
+                // Handle text values (Symbol, Name)
+                return isAsc ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+            });
+            
+            // Reorder rows and their detail rows
+            const fragment = document.createDocumentFragment();
+            rows.forEach(row => {
+                // Clone the row to preserve event handlers
+                const clonedRow = row.cloneNode(true);
+                const toggleBtn = clonedRow.querySelector('.toggle-btn');
+                if (toggleBtn) {
+                    toggleBtn.onclick = function() { toggleDetails(this); };
+                }
+                
+                fragment.appendChild(clonedRow);
+                
+                // Find and clone the details row
+                const detailsRow = row.nextElementSibling;
+                if (detailsRow && detailsRow.classList.contains('details-row')) {
+                    const clonedDetailsRow = detailsRow.cloneNode(true);
+                    fragment.appendChild(clonedDetailsRow);
+                }
+            });
+            
+            tbody.innerHTML = '';
+            tbody.appendChild(fragment);
+        }
+
+        // Add click handlers to all sortable columns and set default sort
+        document.addEventListener('DOMContentLoaded', () => {
+            const tables = [
+                'equityPositionsTable',
+                'optionsPositionsTable',
+                'collectivePositionsTable',
+                'fixedIncomePositionsTable',
+                'otherPositionsTable'
+            ];
+            
+            tables.forEach(tableId => {
+                const table = document.getElementById(tableId);
+                if (table) {
+                    // Initialize toggle buttons
+                    const toggleButtons = table.querySelectorAll('.toggle-btn');
+                    toggleButtons.forEach(button => {
+                        button.onclick = function() { toggleDetails(this); };
+                    });
+                    
+                    const headers = table.querySelectorAll('th');
+                    headers.forEach((header, index) => {
+                        header.style.cursor = 'pointer';
+                        header.addEventListener('click', () => sortTable(tableId, index));
+                    });
+                    
+                    // Set default sort on symbol column (index 0)
+                    sortTable(tableId, 0);
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

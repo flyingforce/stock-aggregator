@@ -1,0 +1,17 @@
+name: stock-aggregator
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - redis
+  - pip:
+    - Flask==2.0.1
+    - redis==4.0.2
+    - requests==2.26.0
+    - python-dotenv==0.19.0
+    - gunicorn==20.1.0
+    - Flask-SQLAlchemy==2.5.1
+    - PyYAML==6.0.1
+    - click==8.1.7 

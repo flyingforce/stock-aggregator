@@ -1,0 +1,13 @@
+stock_aggregator.egg-info/*
+stock-aggregator.log
+.venv/*
+src/__pycache__/*
+tests/__pycache__/*
+config.yml
+__pycache__/*
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
