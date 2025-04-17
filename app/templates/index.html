@@ -6,6 +6,16 @@
     <title>Stock Portfolio Aggregator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        // Custom Jinja2 filter for formatting dollar amounts
+        function formatDollar(value) {
+            if (value === undefined || value === null) return '$0.00';
+            return '$' + parseFloat(value).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+    </script>
     <style>
         @media (min-width: 1080px) {
             .container {
@@ -144,15 +154,19 @@
         <h1 class="text-3xl font-bold mb-6 text-center">Stock Portfolio Aggregator</h1>
         
         <!-- Summary Cards -->
-        <div class="summary-grid grid mb-6">
-            <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex justify-between space-x-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4 flex-1">
                 <h2 class="text-lg font-semibold mb-1">Total Market Value</h2>
-                <p class="text-2xl font-bold">${{ "%.2f"|format(total_market_value) }}</p>
+                <p class="text-2xl font-bold">{{ total_market_value|formatDollar }}</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-4">
+            <div class="bg-white rounded-lg shadow p-4 flex-1">
+                <h2 class="text-lg font-semibold mb-1">Total Cash</h2>
+                <p class="text-2xl font-bold">{{ totals.cash.market_value|formatDollar }}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 flex-1">
                 <h2 class="text-lg font-semibold mb-1">Total Unrealized P/L</h2>
                 <p class="text-2xl font-bold {{ 'text-green-600' if total_unrealized_pl >= 0 else 'text-red-600' }}">
-                    ${{ "%.2f"|format(total_unrealized_pl) }}
+                    {{ total_unrealized_pl|formatDollar }}
                 </p>
             </div>
         </div>
@@ -192,11 +206,11 @@
                                 </td>
                                 <td class="company-name">{{ position.name }}</td>
                                 <td class="whitespace-nowrap">{{ "%.2f"|format(position.total_quantity) }}</td>
-                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.average_cost_basis) }}</td>
-                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.current_price) }}</td>
-                                <td class="whitespace-nowrap">${{ "%.2f"|format(position.total_market_value) }}</td>
+                                <td class="whitespace-nowrap">{{ position.average_cost_basis|formatDollar }}</td>
+                                <td class="whitespace-nowrap">{{ position.current_price|formatDollar }}</td>
+                                <td class="whitespace-nowrap">{{ position.total_market_value|formatDollar }}</td>
                                 <td class="whitespace-nowrap {{ 'text-green-600' if position.total_unrealized_pl >= 0 else 'text-red-600' }}">
-                                    ${{ "%.2f"|format(position.total_unrealized_pl) }} ({{ "%.2f"|format(position.unrealized_pl_percent) }}%)
+                                    {{ position.total_unrealized_pl|formatDollar }} ({{ "%.2f"|format(position.unrealized_pl_percent) }}%)
                                 </td>
                             </tr>
                             {% if position.accounts %}
@@ -208,9 +222,9 @@
                                             <span class="account-id">{{ account.account_id }}</span>
                                             <div class="account-summary">
                                                 <span>{{ "%.2f"|format(account.quantity) }} shares</span>
-                                                <span>Avg Price: ${{ "%.2f"|format(account.average_price) }}</span>
+                                                <span>Avg Price: {{ account.average_price|formatDollar }}</span>
                                                 <span class="{{ 'text-green-600' if account.unrealized_pl >= 0 else 'text-red-600' }}">
-                                                    Total P/L: ${{ "%.2f"|format(account.unrealized_pl) }}
+                                                    Total P/L: {{ account.unrealized_pl|formatDollar }}
                                                 </span>
                                             </div>
                                         </div>
@@ -226,12 +240,12 @@
                 <div class="p-4 border-t bg-gray-50">
                     <div class="flex justify-between">
                         <span class="font-medium">Total Market Value:</span>
-                        <span>${{ "%.2f"|format(totals.equity.market_value) }}</span>
+                        <span>{{ totals.equity.market_value|formatDollar }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="font-medium">Total Unrealized P/L:</span>
                         <span class="{{ 'text-green-600' if totals.equity.unrealized_pl >= 0 else 'text-red-600' }}">
-                            ${{ "%.2f"|format(totals.equity.unrealized_pl) }}
+                            {{ totals.equity.unrealized_pl|formatDollar }}
                         </span>
                     </div>
                 </div>
@@ -601,7 +615,7 @@
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.querySelectorAll('tr:not(.details-row)'));
             const header = table.querySelectorAll('th')[columnIndex];
-            const isAsc = header.getAttribute('data-sort') === 'asc';
+            const isAsc = header.getAttribute('data-sort') !== 'asc';
             
             // Reset all sort indicators
             table.querySelectorAll('th').forEach(th => {
@@ -615,9 +629,9 @@
             // Add sort indicator
             const indicator = document.createElement('span');
             indicator.className = 'sort-indicator';
-            indicator.textContent = isAsc ? ' ↓' : ' ↑';
+            indicator.textContent = isAsc ? ' ↑' : ' ↓';
             header.appendChild(indicator);
-            header.setAttribute('data-sort', isAsc ? 'desc' : 'asc');
+            header.setAttribute('data-sort', isAsc ? 'asc' : 'desc');
             
             // Sort rows
             rows.sort((a, b) => {
@@ -684,8 +698,45 @@
                         header.addEventListener('click', () => sortTable(tableId, index));
                     });
                     
-                    // Set default sort on symbol column (index 0)
-                    sortTable(tableId, 0);
+                    // Set default sort on symbol column (index 0) in ascending order
+                    const symbolHeader = table.querySelectorAll('th')[0];
+                    symbolHeader.setAttribute('data-sort', 'asc');
+                    const indicator = document.createElement('span');
+                    indicator.className = 'sort-indicator';
+                    indicator.textContent = ' ↑';
+                    symbolHeader.appendChild(indicator);
+                    
+                    // Sort the table by symbol in ascending order
+                    const tbody = table.querySelector('tbody');
+                    const rows = Array.from(tbody.querySelectorAll('tr:not(.details-row)'));
+                    rows.sort((a, b) => {
+                        const aValue = a.cells[0].textContent.trim();
+                        const bValue = b.cells[0].textContent.trim();
+                        return aValue.localeCompare(bValue);
+                    });
+                    
+                    // Reorder rows and their detail rows
+                    const fragment = document.createDocumentFragment();
+                    rows.forEach(row => {
+                        // Clone the row to preserve event handlers
+                        const clonedRow = row.cloneNode(true);
+                        const toggleBtn = clonedRow.querySelector('.toggle-btn');
+                        if (toggleBtn) {
+                            toggleBtn.onclick = function() { toggleDetails(this); };
+                        }
+                        
+                        fragment.appendChild(clonedRow);
+                        
+                        // Find and clone the details row
+                        const detailsRow = row.nextElementSibling;
+                        if (detailsRow && detailsRow.classList.contains('details-row')) {
+                            const clonedDetailsRow = detailsRow.cloneNode(true);
+                            fragment.appendChild(clonedDetailsRow);
+                        }
+                    });
+                    
+                    tbody.innerHTML = '';
+                    tbody.appendChild(fragment);
                 }
             });
         });

@@ -87,7 +87,8 @@ class SchwabBroker(Broker):
                 'option': [],
                 'collective_investment': [],
                 'fixed_income': [],
-                'other': []
+                'other': [],
+                'cash': []
             }
             
         if self.use_mock:
@@ -100,7 +101,6 @@ class SchwabBroker(Broker):
                 'other': []
             }
             
-        print(f"Start Getting positions for {self.connection_id}")
         try:
             access_token = self.get_access_token()
             headers = {
@@ -121,7 +121,8 @@ class SchwabBroker(Broker):
                 'option': [],
                 'collective_investment': [],
                 'fixed_income': [],
-                'other': []
+                'other': [],
+                'cash': []
             }
             
             for account in accounts_data:
@@ -152,7 +153,8 @@ class SchwabBroker(Broker):
                             'market_value': position['marketValue'],
                             'unrealized_pl': position.get('unrealizedGainLoss', 0),
                             'asset_type': instrument['assetType'],
-                            'connection_id': self.connection_id
+                            'connection_id': self.connection_id,
+                            'account_id': account['securitiesAccount']['accountNumber']
                         }
                         
                         # Add to appropriate asset type list
@@ -167,6 +169,23 @@ class SchwabBroker(Broker):
                             positions_by_type['fixed_income'].append(position_data)
                         else:
                             positions_by_type['other'].append(position_data)
+                    positions_by_type['cash'].append({
+                        'symbol': 'CASH',
+                        'name': 'Cash',
+                        'quantity': account['securitiesAccount']['currentBalances']['cashBalance'],
+                        'average_price': 1.0,
+                        'current_price': 1.0,
+                        'market_value': account['securitiesAccount']['currentBalances']['cashBalance'],
+                        'unrealized_pl': 0.0,
+                        'unrealized_pl_percent': 0.0,
+                        'accounts': [{
+                            'account_id': account['securitiesAccount']['accountNumber'],
+                            'quantity': account['securitiesAccount']['currentBalances']['cashBalance'],
+                            'average_price': 1.0,
+                            'market_value': account['securitiesAccount']['currentBalances']['cashBalance'],
+                            'unrealized_pl': 0.0
+                        }]
+                    })
             
             return positions_by_type
         except Exception as e:
@@ -176,7 +195,8 @@ class SchwabBroker(Broker):
                 'option': [],
                 'collective_investment': [],
                 'fixed_income': [],
-                'other': []
+                'other': [],
+                'cash': []
             }
     
     def get_accounts(self):
