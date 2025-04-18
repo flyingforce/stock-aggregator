@@ -26,8 +26,6 @@ def get_schwab_token():
         # Step 1: Construct authorization URL
         auth_url = "https://api.schwabapi.com/v1/oauth/authorize"
 
-        # auth_url = f"https://api.schwabapi.com/v1/oauth/authorize?client_id={client_id}&redirect_uri=https://developer.schwab.com/oauth2-redirect.html"
-
         params = {
             "client_id": client_id,
             "redirect_uri": callback_url,
