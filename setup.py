@@ -20,8 +20,8 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'stock-aggregator=stock_aggregator.app.cli:cli',
+            'stock-aggregator=stock_aggregator.cli:cli',
         ],
     },
     python_requires=">=3.9",
-) 
+)

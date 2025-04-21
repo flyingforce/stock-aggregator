@@ -1,10 +1,14 @@
-import plaid
-from plaid.api import plaid_api
-from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
-from plaid.model.accounts_get_request import AccountsGetRequest
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
-from plaid.model.link_token_create_request import LinkTokenCreateRequest
-from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+try:
+    import plaid
+    from plaid.api import plaid_api
+    from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
+    from plaid.model.accounts_get_request import AccountsGetRequest
+    from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+    from plaid.model.link_token_create_request import LinkTokenCreateRequest
+    from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+    PLAID_AVAILABLE = True
+except ImportError:
+    PLAID_AVAILABLE = False
 from typing import List, Dict, Any
 from .base import Broker
 from ..config import Config
@@ -21,19 +25,26 @@ class MerrillBroker(Broker):
         self.credentials = self.config.get_broker_credentials('merrill', connection_id)
         self.use_mock = self.credentials.get('use_mock', False)
         
-        # Initialize Plaid client
-        if not self.use_mock:
-            configuration = plaid.Configuration(
-                host=plaid.Environment.Sandbox if self.credentials.get('sandbox', True) else plaid.Environment.Development,
-                api_key={
-                    'clientId': self.credentials.get('client_id'),
-                    'secret': self.credentials.get('secret'),
-                    'plaidVersion': '2020-09-14'
-                }
-            )
-            api_client = plaid.ApiClient(configuration)
-            self.client = plaid_api.PlaidApi(api_client)
-            self.access_token = self.credentials.get('access_token')
+        # Initialize Plaid client if available
+        if not self.use_mock and PLAID_AVAILABLE:
+            try:
+                configuration = plaid.Configuration(
+                    host=plaid.Environment.Sandbox if self.credentials.get('sandbox', True) else plaid.Environment.Development,
+                    api_key={
+                        'clientId': self.credentials.get('client_id'),
+                        'secret': self.credentials.get('secret'),
+                        'plaidVersion': '2020-09-14'
+                    }
+                )
+                api_client = plaid.ApiClient(configuration)
+                self.client = plaid_api.PlaidApi(api_client)
+                self.access_token = self.credentials.get('access_token')
+            except Exception as e:
+                logger.error(f"Error initializing Plaid client: {str(e)}")
+                self.use_mock = True
+        elif not PLAID_AVAILABLE:
+            logger.warning("Plaid module not available. Using mock data.")
+            self.use_mock = True
 
     def is_enabled(self):
         """Check if the specific Merrill connection is enabled"""
@@ -227,4 +238,4 @@ class MerrillBroker(Broker):
             }
             accounts.append(account)
         
-        return accounts 
+        return accounts

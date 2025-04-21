@@ -48,6 +48,8 @@ class SchwabBroker(Broker):
             
         try:
             # Create Basic Auth header
+            print(f"client_id: {self.credentials['client_id']} client_secret: {self.credentials['client_secret']}")
+            print(f"refresh_token: {self.refresh_token}")
             auth_string = f"{self.credentials['client_id']}:{self.credentials['client_secret']}"
             encoded_auth = base64.b64encode(auth_string.encode()).decode()
             

@@ -1,3 +1,5 @@
+"""CLI modules for stock-aggregator."""
+
 import click
 import webbrowser
 import requests
@@ -95,4 +97,4 @@ def get_schwab_token():
         raise click.Abort()
 
 if __name__ == "__main__":
-    cli() 
+    cli()

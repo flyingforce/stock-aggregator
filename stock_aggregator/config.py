@@ -5,27 +5,74 @@ from pathlib import Path
 class Config:
     """Application configuration class"""
     
-    def __init__(self):
+    def __init__(self, config_path=None):
+        """
+        Initialize the Config class.
+        
+        Args:
+            config_path (str, optional): Custom path to the config file. Useful for testing.
+        """
+        self.config = {}
+        
+        # If a custom config path is provided, use it
+        if config_path and os.path.exists(config_path):
+            self._load_config(config_path)
+            return
+            
+        # Check for config file in multiple locations
+        config_paths = [
+            # 1. Environment variable
+            os.environ.get('STOCK_AGGREGATOR_CONFIG'),
+            
+            # 2. Current working directory
+            os.path.join(os.getcwd(), 'config.yml'),
+            
+            # 3. Project root directory
+            self._get_project_root_config_path(),
+            
+            # 4. User's home directory
+            str(Path.home() / '.stock_aggregator' / 'config.yml'),
+            
+            # 5. System-wide config (Linux/macOS)
+            '/etc/stock_aggregator/config.yml'
+        ]
+        
+        # Try each path until we find a valid config file
+        for path in config_paths:
+            if path and os.path.exists(path):
+                self._load_config(path)
+                return
+                
+        # If we get here, no config file was found
+        raise FileNotFoundError(
+            "Config file not found. Please create a config.yml file in one of the following locations:\n" +
+            "\n".join([p for p in config_paths if p])
+        )
+    
+    def _get_project_root_config_path(self):
+        """Get the path to config.yml in the project root directory."""
         # Get the absolute path of the current file
         current_file = os.path.abspath(__file__)
-        # Get the app directory
-        app_dir = os.path.dirname(current_file)
-        # Get the project root directory (stock-aggregator)
-        project_root = os.path.dirname(app_dir)
+        # Get the package directory
+        package_dir = os.path.dirname(current_file)
+        # Get the project root directory
+        project_root = os.path.dirname(package_dir)
         # Construct the config file path
-        config_path = os.path.join(project_root, 'config.yml')
-        
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found at: {config_path}")
-            
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        return os.path.join(project_root, 'config.yml')
+    
+    def _load_config(self, config_path):
+        """Load the configuration from the specified path."""
+        try:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+            print(f"Loaded configuration from {config_path}")
+        except Exception as e:
+            raise ValueError(f"Error loading config from {config_path}: {str(e)}")
     
     def get_broker_connections(self, broker_type):
         """Get all connections for a specific broker type"""
         connections = []
         for connection in self.config.get('brokers', []):
-            print(f"config connection: {connection}")
             if connection.get('type') == broker_type:
                 connections.append(connection)
         return connections
@@ -97,4 +144,4 @@ class Config:
                                        str(Path.home() / '.stock_aggregator' / 'config.yml'))
     
     # Template settings
-    TEMPLATES_AUTO_RELOAD = True 
+    TEMPLATES_AUTO_RELOAD = True
