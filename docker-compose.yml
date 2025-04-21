@@ -9,10 +9,12 @@ services:
       - FLASK_APP=app/main.py
       - FLASK_ENV=development
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/stock_aggregator
     volumes:
       - .:/app
     depends_on:
       - redis
+      - postgres
 
   redis:
     image: redis:6.2-alpine
@@ -21,5 +23,22 @@ services:
     volumes:
       - redis_data:/data
 
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=stock_aggregator
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
-  redis_data: 
+  redis_data:
+  postgres_data: 

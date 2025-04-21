@@ -157,7 +157,7 @@ class SchwabBroker(Broker):
                             'asset_type': instrument['assetType'],
                             'connection_id': self.connection_id,
                             'account_id': account['securitiesAccount']['accountNumber']
-                        }
+                        }   
                         
                         # Add to appropriate asset type list
                         asset_type = instrument['assetType'].lower()

@@ -145,3 +145,17 @@ class Config:
     
     # Template settings
     TEMPLATES_AUTO_RELOAD = True
+
+    # Database settings
+    @property
+    def DATABASE_URL(self):
+        """Get the PostgreSQL database URL"""
+        # First try to get from environment variable
+        db_url = os.environ.get('DATABASE_URL')
+        if db_url:
+            return db_url
+            
+        # If not in environment, construct from config
+        db_config = self.config.get('database', {})
+        return f"postgresql://{db_config.get('user')}:{db_config.get('password')}@{db_config.get('host')}:{db_config.get('port', 5432)}/{db_config.get('name')}"
+

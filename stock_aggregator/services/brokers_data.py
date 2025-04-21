@@ -1,8 +1,10 @@
 from typing import List, Dict, Any
+from datetime import date
 from ..config import Config
 from ..brokers.schwab import SchwabBroker
 from ..brokers.merrill import MerrillBroker
-from ..services.market_data import MarketDataService
+from .market_data import MarketDataService
+from .snapshot_service import SnapshotService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,6 +14,7 @@ class BrokersDataService:
         self.config = Config()
         self.brokers = {}
         self.market_data = MarketDataService()
+        self.snapshot_service = SnapshotService(self.config)
         self._initialize_brokers()
     
     def _initialize_brokers(self):
@@ -120,7 +123,7 @@ class BrokersDataService:
         return list(aggregated.values())
     
     def get_positions(self) -> Dict[str, Any]:
-        """Get combined positions from all enabled broker connections"""
+        """Get combined positions from all enabled broker connections and store in database"""
         positions_by_type = {
             'equity': [],
             'option': [],
@@ -141,6 +144,12 @@ class BrokersDataService:
         
         total_market_value = 0.0
         total_unrealized_pl = 0.0
+        total_cost_basis = 0.0
+        total_cash = 0.0
+        accounts = []
+        
+        # Get today's date for database storage
+        today = date.today()
         
         for connection_id, broker in self.brokers.items():
             try:
@@ -150,6 +159,29 @@ class BrokersDataService:
                 # Combine positions by type
                 for asset_type, positions in broker_positions.items():
                     positions_by_type[asset_type].extend(positions)
+                    
+                    # Update totals
+                    if asset_type == 'cash':
+                        for position in positions:
+                            total_cash += position.get('market_value', 0.0)
+                            accounts.append({
+                                'account_id': position.get('account_id', ''),
+                                'broker': broker.__class__.__name__.replace('Broker', '').lower(),
+                                'cash_balance': position.get('market_value', 0.0),
+                                'connection_id': connection_id
+                            })
+                    else:
+                        for position in positions:
+                            market_value = position.get('market_value', 0.0)
+                            unrealized_pl = position.get('unrealized_pl', 0.0)
+                            cost_basis = position.get('quantity', 0.0) * position.get('average_price', 0.0)
+                            
+                            totals[asset_type]['market_value'] += market_value
+                            totals[asset_type]['unrealized_pl'] += unrealized_pl
+                            total_market_value += market_value
+                            total_unrealized_pl += unrealized_pl
+                            total_cost_basis += cost_basis
+                            
             except Exception as e:
                 logger.error(f"Error getting positions from {connection_id}: {str(e)}")
         
@@ -163,18 +195,38 @@ class BrokersDataService:
             'cash': positions_by_type['cash']  # Cash positions are already in the correct format
         }
         
-        # Recalculate totals based on aggregated positions
-        for asset_type, positions in aggregated_positions.items():
-            if asset_type == 'cash':
-                # For cash, sum the market values directly
-                totals[asset_type]['market_value'] = sum(pos['market_value'] for pos in positions)
-                totals[asset_type]['unrealized_pl'] = 0.0  # Cash has no unrealized P/L
-            else:
-                totals[asset_type]['market_value'] = sum(pos['total_market_value'] for pos in positions)
-                totals[asset_type]['unrealized_pl'] = sum(pos['total_unrealized_pl'] for pos in positions)
-            
-            total_market_value += totals[asset_type]['market_value']
-            total_unrealized_pl += totals[asset_type]['unrealized_pl']
+        # Store account snapshot
+        try:
+            self.snapshot_service.save_account_snapshot(
+                date=today,
+                cash_total=total_cash,
+                cost_basis=total_cost_basis,
+                accounts_count=len(accounts),
+                market_value=total_market_value,
+                open_pl=total_unrealized_pl,
+                account_info={
+                    'accounts': accounts,
+                    'brokers': list(self.brokers.keys()),
+                    'totals': totals
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error saving account snapshot: {str(e)}")
+        
+        # Store position snapshot
+        try:
+            self.snapshot_service.save_position_snapshot(
+                date=today,
+                cost_basis=total_cost_basis,
+                market_value=total_market_value,
+                open_pl=total_unrealized_pl,
+                position_info={
+                    'positions_by_type': aggregated_positions,
+                    'totals': totals
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error saving position snapshot: {str(e)}")
         
         return {
             'positions_by_type': aggregated_positions,
