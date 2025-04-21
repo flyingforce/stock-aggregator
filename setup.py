@@ -3,8 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="stock-aggregator",
     version="0.1.0",
-    packages=find_packages(where="."),
-    package_dir={"": "."},
+    packages=find_packages(),
     include_package_data=True,
     install_requires=[
         "Flask==2.0.1",
@@ -16,7 +15,9 @@ setup(
         "Flask-SQLAlchemy==2.5.1",
         "PyYAML==6.0.1",
         "click==8.1.7",
-        "yfinance>=0.2.36"
+        "yfinance>=0.2.36",
+        "plaid-python==9.8.0",
+        "APScheduler==3.10.4"
     ],
     entry_points={
         'console_scripts': [

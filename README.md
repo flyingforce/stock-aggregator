@@ -11,6 +11,7 @@ A web application that aggregates stock positions from multiple brokerage accoun
 - Docker support for easy deployment
 - CLI tools for token management
 - Mock data support for development
+- Daily portfolio snapshots with historical tracking
 
 ## Prerequisites
 
@@ -31,6 +32,12 @@ cd stock-aggregator
 
 ```bash
 pip install -e .
+```
+
+3. Install additional dependencies:
+
+```bash
+pip install plaid-python
 ```
 
 ## Running the Application
@@ -73,6 +80,44 @@ docker-compose up --build
 ```
 
 The application will be available at <http://localhost:5000>
+
+## Snapshot Scheduler
+
+The application includes a background scheduler that automatically generates daily snapshots of your portfolio. These snapshots track:
+
+- Total account value
+- Cash positions
+- Open positions and their performance
+- Historical changes in your portfolio
+
+### Configuration
+
+Add the following to your `config.yml`:
+
+```yaml
+snapshot_schedule:
+  hour: 16    # 4 PM
+  minute: 0   # Run at 4:00 PM
+```
+
+### Running the Scheduler
+
+The snapshot scheduler starts automatically with the application. To manually trigger a snapshot:
+
+```python
+from stock_aggregator.app.services.snapshot_service import SnapshotService
+
+snapshot_service = SnapshotService()
+snapshot_service.generate_snapshot()  # Generate snapshot immediately
+```
+
+### Managing Snapshots
+
+The scheduler automatically cleans up old snapshots to prevent database bloat. By default, it keeps 30 days of history. To change this:
+
+```python
+snapshot_service.cleanup_old_snapshots(days_to_keep=60)  # Keep 60 days of history
+```
 
 ## Configuration
 
@@ -131,6 +176,12 @@ pip install -e .
    ```bash
    echo $REDIS_URL
    ```
+
+3. If snapshot generation fails:
+
+   1. Check the application logs for error messages
+   2. Verify database connection settings in `config.yml`
+   3. Ensure all required broker connections are properly configured
 
 ## Contributing
 
