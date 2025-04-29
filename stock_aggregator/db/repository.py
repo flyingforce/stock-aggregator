@@ -95,4 +95,18 @@ class Repository:
                 Position.date.between(start_date, end_date)
             ).all()
         finally:
+            session.close()
+    
+    def get_available_dates(self):
+        """Get all dates that have snapshots in the database"""
+        session = self.Session()
+        try:
+            # Get dates from both account and position snapshots
+            account_dates = session.query(Account.date).distinct().all()
+            position_dates = session.query(Position.date).distinct().all()
+            
+            # Combine and sort dates
+            all_dates = set([d[0] for d in account_dates + position_dates])
+            return sorted(all_dates, reverse=True)
+        finally:
             session.close() 

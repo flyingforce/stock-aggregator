@@ -6,6 +6,8 @@
     <title>Stock Portfolio Aggregator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
         // Custom Jinja2 filter for formatting dollar amounts
         function formatDollar(value) {
@@ -147,11 +149,46 @@
         th:hover {
             background-color: #f0f0f0;
         }
+        
+        /* Calendar styles */
+        .calendar-container {
+            max-width: 300px;
+            margin: 0 auto 2rem;
+        }
+        
+        .flatpickr-calendar {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 0.5rem;
+        }
+        
+        .flatpickr-day.has-data {
+            background-color: #E5E7EB;
+            color: #1F2937;
+        }
+        
+        .flatpickr-day.has-data:hover {
+            background-color: #D1D5DB;
+        }
+        
+        .flatpickr-day.selected {
+            background-color: #3B82F6;
+            color: white;
+        }
+        
+        .flatpickr-day.selected:hover {
+            background-color: #2563EB;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-6">
         <h1 class="text-3xl font-bold mb-6 text-center">Stock Portfolio Aggregator</h1>
+        
+        <!-- Calendar Widget -->
+        <div class="calendar-container">
+            <input type="text" id="datePicker" class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Select date">
+        </div>
         
         <!-- Summary Cards -->
         <div class="flex justify-between space-x-4 mb-6">
@@ -161,7 +198,7 @@
             </div>
             <div class="bg-white rounded-lg shadow p-4 flex-1">
                 <h2 class="text-lg font-semibold mb-1">Total Cash</h2>
-                <p class="text-2xl font-bold">{{ totals.cash.market_value|formatDollar }}</p>
+                <p class="text-2xl font-bold">{{ total_cash|formatDollar }}</p>
             </div>
             <div class="bg-white rounded-lg shadow p-4 flex-1">
                 <h2 class="text-lg font-semibold mb-1">Total Unrealized P/L</h2>
@@ -739,6 +776,30 @@
                     tbody.appendChild(fragment);
                 }
             });
+        });
+
+        // Initialize calendar
+        document.addEventListener('DOMContentLoaded', function() {
+            const fp = flatpickr("#datePicker", {
+                dateFormat: "Y-m-d",
+                maxDate: "today",
+                onChange: function(selectedDates, dateStr) {
+                    if (dateStr) {
+                        window.location.href = `/portfolio/${dateStr}`;
+                    }
+                },
+                onDayCreate: function(dObj, dStr, fp, dayElem) {
+                    // Check if this date has data
+                    const date = dayElem.dateObj;
+                    const dateStr = date.toISOString().split('T')[0];
+                    if (availableDates.includes(dateStr)) {
+                        dayElem.classList.add('has-data');
+                    }
+                }
+            });
+            
+            // Set available dates from the server
+            const availableDates = {{ available_dates|tojson|safe }};
         });
     </script>
 </body>

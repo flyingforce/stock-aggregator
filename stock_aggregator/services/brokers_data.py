@@ -80,15 +80,23 @@ class BrokersDataService:
             # Try to get current price from market data
             current_price = agg['current_price']
             
+            # print("position type: "+str(position.get('asset_type')))
             # Handle fixed income positions differently
-            if position.get('asset_type') == 'fixed_income':
+            if position.get('asset_type') == 'FIXED_INCOME':
                 # For fixed income, quantity is in face value (e.g., $1000 bonds)
                 # Market value is quantity * current price (as percentage of face value)
                 market_value = position['quantity'] * (current_price / 100.0)
                 # Cost basis is quantity * average price (as percentage of face value)
                 cost_basis = position['quantity'] * (position['average_price'] / 100.0)
                 unrealized_pl = market_value - cost_basis
-            else:
+            elif position.get('asset_type') == 'OPTION':
+                current_price = position['current_price']/100
+                market_value = current_price * position['quantity']*100
+                print("position: "+str(position))
+                cost_basis = position['quantity'] * position['average_price']*100
+                unrealized_pl = market_value - (cost_basis)
+                # print("unrealized_pl: "+str(unrealized_pl)+ " market_value: "+str(market_value)+ " cost_basis: "+str(cost_basis))
+            else :
                 # For other asset types (equity, options, etc.)
                 market_value = position['quantity'] * current_price
                 unrealized_pl = market_value - (position['quantity'] * position['average_price'])
@@ -96,7 +104,9 @@ class BrokersDataService:
             agg['current_price'] = current_price
             agg['total_quantity'] += position['quantity']
             agg['total_market_value'] += market_value
-
+            agg['total_unrealized_pl'] += unrealized_pl
+            if(position.get('asset_type') == 'OPTION'):
+                print("option: unrealized_pl: "+str(unrealized_pl)+ " agg['total_unrealized_pl']: "+str(agg['total_unrealized_pl'])+ " cost_basis: "+str(cost_basis))
             # Add account details
             agg['accounts'].append({
                 'account_id': position.get('account_id', ''),
@@ -111,14 +121,11 @@ class BrokersDataService:
         for agg in aggregated.values():
             # Calculate total cost basis
             total_cost = sum(acc['total_cost'] for acc in agg['accounts'])
-            agg['average_cost_basis'] = total_cost / agg['total_quantity'] if agg['total_quantity'] > 0 else 0
-            
-            # Calculate total unrealized PL
-            agg['total_unrealized_pl'] = agg['total_market_value'] - total_cost
+            agg['average_cost_basis'] = total_cost / agg['total_quantity']
             
             # Calculate unrealized PL percentage
-            if total_cost > 0:
-                agg['unrealized_pl_percent'] = (agg['total_unrealized_pl'] / total_cost) * 100
+            agg['unrealized_pl_percent'] = (agg['total_unrealized_pl'] / total_cost) * 100
+                
         
         return list(aggregated.values())
     
@@ -173,8 +180,8 @@ class BrokersDataService:
                     else:
                         for position in positions:
                             market_value = position.get('market_value', 0.0)
-                            unrealized_pl = position.get('unrealized_pl', 0.0)
                             cost_basis = position.get('quantity', 0.0) * position.get('average_price', 0.0)
+                            unrealized_pl = (market_value-cost_basis)
                             
                             totals[asset_type]['market_value'] += market_value
                             totals[asset_type]['unrealized_pl'] += unrealized_pl
@@ -195,6 +202,10 @@ class BrokersDataService:
             'cash': positions_by_type['cash']  # Cash positions are already in the correct format
         }
         
+        # print("total_cash: "+str(total_cash))
+        # print("total_cost_basis: "+str(total_cost_basis))
+        # print("total_market_value: "+str(total_market_value))
+        # print("total_unrealized_pl: "+str(total_unrealized_pl))
         # Store account snapshot
         try:
             self.snapshot_service.save_account_snapshot(
@@ -232,7 +243,8 @@ class BrokersDataService:
             'positions_by_type': aggregated_positions,
             'totals': totals,
             'total_market_value': total_market_value,
-            'total_unrealized_pl': total_unrealized_pl
+            'total_unrealized_pl': total_unrealized_pl,
+            'total_cash': total_cash
         }
     
     def get_broker(self, connection_id: str):
